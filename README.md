@@ -222,40 +222,87 @@ This will append the config file with a client block, and then restart the serve
 
 ## 6)
 
-## Flow
+The next step we are going to deploy something in nomad though terraform. As an example of this we are going to deploy nginx.
 
-Try plan coder - talk about allocations
+To start with this we will create a file called `nginx.hcl` with includes:
 
-`nomad job plan coder.hcl`
+```hcl
+job "nginx" {
+  datacenters = ["*"]
 
-Install docker
-
-`nomad job run docker.hcl`
-
-see in UI that it now works
-
-annoying need to set random port
-
-set a static port to ` static = 8080 `
-
----- Dont think this is a good idea any more, maybe deploy with terraform insted. or one vault node to show vars?
-
-run vault see client error. Edit server to also run client
-
-```bash
-cat >> /etc/nomad.d/config.hcl << EOF
-client {
-    enabled = true
+  group "nginx"{
+    count = 1
+    network {
+      mode = "host"
+      port "web" {
+        to = 80
+      }
+    }
+    task "nginx" {
+      driver = "docker"
+      meta {
+        service = "nginx"
+      }
+      config {
+        image = "nginx:latest"
+        ports = ["web"]
+      }
+    } 
+  }
 }
-EOF
-systemctl restart nomad
+
 ```
 
-now have 2 clients
+We have seen all these parts before we are just deploying a nginx docker container.
+To get it deployed with terraform we will create a file called `nginx.tf` with the following context:
 
-deploy vault to show variable and distinct hosts though no auto join set up, would nginx be better?
+```hcl
+terraform {
+  required_providers {
+    nomad = {
+      source = "hashicorp/nomad"
+      version = "2.0.0"
+    }
+  }
+}
 
-deploy nginx via terraform
+provider "nomad" {
+  address = "http://127.0.0.1:4646/"
+}
 
-add service to nginx redeploy
+resource "nomad_job" "app" {
+  jobspec = file("${path.module}/nginx.hcl")
+}
 
+```
+
+This gives the infomation that terraform needs and then uses the resource block to deploy the file.
+You can run it with `terraform init; terraform apply` which will setup terrform and apply the code.
+Then in the UI you can see the port that it is deployed on nomad.
+
+## 7)
+
+One last peice of cool functionality nomad has that we can mess with is health checks.
+We can enable this by using a service block. In the `group block` of the nginx job add:
+
+```hcl
+service {
+  provider = "nomad"
+  port = "web"
+  check {
+    type     = "http"
+    name     = "app_health"
+    path     = "/"
+    interval = "20s"
+    timeout  = "5s"
+
+    check_restart {
+      limit = 3
+      grace = "90s"
+      ignore_warnings = false
+    }
+  }
+}
+```
+
+Then rerun `terraform apply`. You will see the nice plan saying what is changing, then once it is deployed we can do in to the UI and under the task see that it is all green and healthy.
