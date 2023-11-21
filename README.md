@@ -1,8 +1,8 @@
-# scratchpad
+# README
 
 ## link
 
-[http://funny-panda.devopsplayground.org:8000/?folder=/home/coder]
+< link to DPG lab site >
 
 ## 1)
 
