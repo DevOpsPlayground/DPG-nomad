@@ -8,6 +8,14 @@
 
 The first thing we are going to do with nomad is try and set up coder which is the web based IDE.
 
+nomad: http://<panda>.devopsplayground.org:4646/ui/jobs
+IDE: http://<panda>.devopsplayground.org:8000
+terminal: http://<panda>.devopsplayground.org/wetty
+
+In the IDE you want to be in the `projetcs` directory
+In wetty you want to be in the `workdir` directory 
+
+
 If you create a file called `coder.hcl` and add the following code:
 
 ```hcl
@@ -49,17 +57,21 @@ job "coder" {
 
 Before we deploy the code it is worth looking though it an talking about what parts of it do.
 
-`job` is the block around everything, when you are deploying though nomad you are deploying jobs.
-`datacenters = ["*"]` lets you limit the datacenter you are deploying in to, this is good if you only have access to a part of the cluster `*` means it will just deploy to where ever has space.
-`group` with in a job there are groups, this group up setting and tasks. But one job can have many groups.
-`network` this sets up the networking. As we want access to this from the web we are using `host` mode so the service will have a port on the client.
-`task` is the bit that does the deployment, in this case the task deploys a docker image (which is the `driver` type)
-`config` in this context is the docker config that will be passed through
-`artifact` is a way of downloading (and unzipping if required) any files the the task requires.
+ - `job` is the block around everything, when you are deploying though nomad you are deploying jobs.
+ - `datacenters = ["*"]` lets you limit the datacenter you are deploying in to, this is good if you only have access to a part of the cluster `*` means it will just deploy to where ever has space.
+  - `group` with in a job there are groups, this group up setting and tasks. But one job can have many groups.
+  - `network` this sets up the networking. As we want access to this from the web we are using `host` mode so the service will have a port on the client.
+ - `task` is the bit that does the deployment, in this case the task deploys a docker image (which is the `driver` type)
+  - `config` in this context is the docker config that will be passed through
+  - `artifact` is a way of downloading (and unzipping if required) any files the the task requires.
 
-now we know that it is time to deploy run. we can run
+Now we know that it is time to deploy run. In the terminal we can run
+
 `nomad job plan coder.hcl`
+
 to check what it is trying to do. If we look at the plan it looks like there is no client that meets the requirment for the allocation.
+
+![Failed to place all allocions\nmissing driver](images/no_docker.png)
 
 This is because the client doesnt have docker installed. You can see this if you go in to the client info on the web UI. To fix this lets use nomad to deploy docker on the client.
 
@@ -101,8 +113,8 @@ EOH
 
 While this file looks messy most of it is the `template` block which is similar to the `artifact` block from before but lets us pass in text and use varaible (which we will see later)
 There are 2 other feilds we havent seen that do some intresting stuff
-`type = "sysbatch"` this tells nomad this is used to set up the clients, so run it once then be happy that is has finished.
-`driver = "raw_exec"` last time we used the docker driver to run in a segrigated docker image. This driver type lets you run commands stright on the server. It probily isnt a good idea to let users do this in production. But it shows off how nomad can be used to set up nomad.
+ - `type = "sysbatch"` this tells nomad this is used to set up the clients, so run it once then be happy that is has finished.
+ - `driver = "raw_exec"` last time we used the docker driver to run in a segrigated docker image. This driver type lets you run commands stright on the server. It probily isnt a good idea to let users do this in production. But it shows off how nomad can be used to set up nomad.
 
 To run this use the command:
 `nomad job run docker.hcl`
@@ -115,8 +127,11 @@ We can now run the coder example successfully
 to deploy the coder example run:
 `nomad job run coder.hcl`
 
-This should have deployed coder with a random port on the server, you can see it by looking at the allocation on the nomad UI.
+This might take a few minutes for the client to update
 
+This should have deployed coder with a random port on the server, you can see it by looking at the allocation on the nomad UI. This port needs to be appended to the client public IP for it to work
+![Click the button called coder](images/click_coder.png)
+![Click the IP under resent allocations](images/click_alloc.png)
 This is a bit annoying to have to do and it would be good if we could set the IP. Luckly there is an option to set the ip to be static. In the `coder.hcl` file replace the network block with:
 
 ```hcl
@@ -194,11 +209,12 @@ EOH
 ```
 
 This code does quite a bit, but most of it we have see before. The stuff we haven't seen before is:
-`constraint` we are using this to only deploy 1 node per client, as having 2 nodes on the same client wouldn't help with High Avalibility
-`{{env ""}}` This is how we pull in variables from nomad on to the template files.
-`driver = "exec"` lets you run executable files on the client in a segrigated way, so we dont have to deal with putting apps in docker when they dont have any docker support.
+ - `constraint` we are using this to only deploy 1 node per client, as having 2 nodes on the same client wouldn't help with High Avalibility
+ - `{{env ""}}` This is how we pull in variables from nomad on to the template files.
+ - `driver = "exec"` lets you run executable files on the client in a segrigated way, so we dont have to deal with putting apps in docker when they dont have any docker support.
 
 We can now deploy this with:
+
 `nomad job run vault.hcl`
 
 If we look at the deployment, it looks like it was able to start one allocaiton but it cant find a client that matchs the conditions to start another. This is becase we only have 1 client currently started, but have the `constraint` they all have to be on diffrent clients.
@@ -207,7 +223,7 @@ To fix this we are going to edit the server to also be a client. This is good fo
 
 ## 5)
 
-Open up wetty (The web terminal) and run:
+Open up wetty (The web terminal) and as root (`sudo -i`) run:
 
 ```bash
 cat >> /etc/nomad.d/config.hcl << EOF
@@ -216,9 +232,11 @@ client {
 }
 EOF
 systemctl restart nomad
+exit
 ```
 
 This will append the config file with a client block, and then restart the server. If you go to the client part of the UI you should now see 2 servers, both with vault deployed in them
+![vault have 2 allocations](images/vault.png)
 
 ## 6)
 
@@ -277,12 +295,17 @@ resource "nomad_job" "app" {
 ```
 
 This gives the infomation that terraform needs and then uses the resource block to deploy the file.
+
 You can run it with `terraform init; terraform apply` which will setup terrform and apply the code.
+
 Then in the UI you can see the port that it is deployed on nomad.
+
+![nginx started](images/nginx.png)
 
 ## 7)
 
 One last peice of cool functionality nomad has that we can mess with is health checks.
+
 We can enable this by using a service block. In the `group block` of the nginx job add:
 
 ```hcl
@@ -306,3 +329,5 @@ service {
 ```
 
 Then rerun `terraform apply`. You will see the nice plan saying what is changing, then once it is deployed we can do in to the UI and under the task see that it is all green and healthy.
+
+![nginx service](images/nginx_service.png)
