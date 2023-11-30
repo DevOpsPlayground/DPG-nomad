@@ -1,12 +1,10 @@
 # README
 
-## link
+## Link to Lab
 
-< link to DPG lab site >
+[DevOpsPlayground Lab](https://lab.devopsplayground.org/)
 
-## 1)
-
-The first thing we are going to do with nomad is try and set up coder which is the web based IDE.
+## 1) The first thing we are going to do with nomad is try and set up coder which is the web based IDE.
 
 nomad: http://<panda>.devopsplayground.org:4646/ui/jobs
 IDE: http://<panda>.devopsplayground.org:8000
@@ -46,7 +44,7 @@ job "coder" {
         ]
       }
       artifact {
-        source      = "https://github.com/BLINKBYTE/nomad/archive/refs/heads/main.zip"
+        source      = "https://github.com/DevOpsPlayground/DPG-nomad/archive/refs/heads/main.zip"
         destination = "local/repo"
       }
     } 
@@ -75,9 +73,7 @@ to check what it is trying to do. If we look at the plan it looks like there is 
 
 This is because the client doesnt have docker installed. You can see this if you go in to the client info on the web UI. To fix this lets use nomad to deploy docker on the client.
 
-## 2)
-
-lets make a file called `docker.hcl` and pasted in:
+## 2) lets make a file called `docker.hcl` and pasted in:
 
 ```hcl
 job "docker" {
@@ -122,16 +118,17 @@ once that has succeded, docker should be installed and set up correctly on the c
 
 We can now run the coder example successfully
 
-## 3)
+## 3) to deploy the coder example run:
 
-to deploy the coder example run:
 `nomad job run coder.hcl`
 
 This might take a few minutes for the client to update
 
 This should have deployed coder with a random port on the server, you can see it by looking at the allocation on the nomad UI. This port needs to be appended to the client public IP for it to work
+
 ![Click the button called coder](images/click_coder.png)
 ![Click the IP under resent allocations](images/click_alloc.png)
+
 This is a bit annoying to have to do and it would be good if we could set the IP. Luckly there is an option to set the ip to be static. In the `coder.hcl` file replace the network block with:
 
 ```hcl
@@ -148,9 +145,7 @@ Now redeploy with:
 `nomad job run coder.hcl`
 This will create a new version of the same deployment. And you should now be able to go to the `<clients ip>:8080` and see coder.
 
-## 4)
-
-We are now going to be a slightly more complicated examble, lets deploy Hashicorp Vault on to it. Though we are going to be deploying 2 nodes, we arnt going to be dealing with auto join or unsealing them.
+## 4) We are now going to be a slightly more complicated examble, lets deploy Hashicorp Vault on to it. Though we are going to be deploying 2 nodes, we arnt going to be dealing with auto join or unsealing them.
 
 Lets create a file called `vault.hcl` and pasted in the following:
 
@@ -221,9 +216,7 @@ If we look at the deployment, it looks like it was able to start one allocaiton 
 
 To fix this we are going to edit the server to also be a client. This is good for small set ups but in prod you would want to keep the server client split.
 
-## 5)
-
-Open up wetty (The web terminal) and as root (`sudo -i`) run:
+## 5) Open up wetty (The web terminal) and as root (`sudo -i`) run:
 
 ```bash
 cat >> /etc/nomad.d/config.hcl << EOF
@@ -238,9 +231,7 @@ exit
 This will append the config file with a client block, and then restart the server. If you go to the client part of the UI you should now see 2 servers, both with vault deployed in them
 ![vault have 2 allocations](images/vault.png)
 
-## 6)
-
-The next step we are going to deploy something in nomad though terraform. As an example of this we are going to deploy nginx.
+## 6) The next step we are going to deploy something in nomad though terraform. As an example of this we are going to deploy nginx.
 
 To start with this we will create a file called `nginx.hcl` with includes:
 
@@ -302,9 +293,7 @@ Then in the UI you can see the port that it is deployed on nomad.
 
 ![nginx started](images/nginx.png)
 
-## 7)
-
-One last peice of cool functionality nomad has that we can mess with is health checks.
+## 7) One last peice of cool functionality nomad has that we can mess with is health checks.
 
 We can enable this by using a service block. In the `group block` of the nginx job add:
 
